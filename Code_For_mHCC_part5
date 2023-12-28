@@ -1,0 +1,307 @@
+.libPaths("D:/Program Files/R/R-4.0.5/library")
+setwd("C:\\Users\\yangyongheng\\Desktop\\mHCC\\Fig.6")
+library(ggplot2)
+library(tidyverse)
+library(ggpubr)
+meta1 <- readRDS("C:/Users/yangyongheng/Desktop/tired/meta_T.rds")
+meta2 <- readRDS("C:/Users/yangyongheng/Desktop/manuscript/Figure5/meta_1106_mac.rds")
+meta1$patients <- substr(meta1$orig.ident,1,9)
+meta2$patients <- substr(meta2$orig.ident,1,9)
+cluster_prop <- meta1  %>% 
+  group_by(orig.ident, Type) %>%
+  dplyr::count()
+cluster_prop <- as.data.frame(cluster_prop)
+colnames(cluster_prop)[1] <- "subject"
+subject_spot_count <- aggregate(cluster_prop$n, by=list(subject = cluster_prop$subject), FUN=sum)
+colnames(subject_spot_count)[2] <- "total_spots"
+cluster_prop <- merge(x = cluster_prop, y = subject_spot_count, by = c("subject"))
+cluster_prop$cluster_pct_subject <- round((cluster_prop$n / cluster_prop$total_spots), digits = 3)*100
+d_plot <- cluster_prop
+d_plot$patients <- substr(d_plot$subject,1,9)
+class <- data.frame(unique(d_plot$subject))
+colnames(class) <- "subject"
+class$class <- c("T","T","T","N",
+                 "N","T","T","T",
+                 "N","T","T",
+                 "N","T","T",
+                 "T","N","N",
+                 "N","T","T",
+                 "N","T","T")
+d_plot_T <- left_join(d_plot,class,by="subject")
+cluster_prop <- meta2  %>% 
+  group_by(orig.ident, rename_3) %>%
+  dplyr::count()
+cluster_prop <- as.data.frame(cluster_prop)
+colnames(cluster_prop)[1] <- "subject"
+subject_spot_count <- aggregate(cluster_prop$n, by=list(subject = cluster_prop$subject), FUN=sum)
+colnames(subject_spot_count)[2] <- "total_spots"
+cluster_prop <- merge(x = cluster_prop, y = subject_spot_count, by = c("subject"))
+cluster_prop$cluster_pct_subject <- round((cluster_prop$n / cluster_prop$total_spots), digits = 3)*100
+d_plot <- cluster_prop
+d_plot$patients <- substr(d_plot$subject,1,9)
+class <- data.frame(unique(d_plot$subject))
+colnames(class) <- "subject"
+class$class <- c("T","T","T","N",
+                 "N","T","T","T",
+                 "N","T","T",
+                 "N","T","T",
+                 "T","N","N",
+                 "N","T","T",
+                 "N","T","T")
+d_plot_M <- left_join(d_plot,class,by="subject")
+#plot
+data_cor_T <- d_plot_T[,c(1,2,5)]
+data_cor_T <- reshape2::dcast(data_cor_T,subject~Type)
+data_cor_T <- column_to_rownames(data_cor_T,var="subject")
+data_cor_T<- as.matrix(data_cor_T)
+data_cor_T[is.na(data_cor_T)] <- 0 
+data_cor <- d_plot_M[,c(1,2,5)]
+data_cor <- reshape2::dcast(data_cor,subject~rename_3)
+data_cor <- column_to_rownames(data_cor,var="subject")
+data_cor <- as.matrix(data_cor)
+data_cor[is.na(data_cor)] <- 0 
+identical(rownames(data_cor),rownames(data_cor_T))
+data_all <- cbind(data_cor,data_cor_T)
+cor <- cor(data_all)
+p1 <- ComplexHeatmap::pheatmap(cor,color = c("lightblue4","#e3dae6","white",
+                                       "#db8c77","#cf3132"),
+                         border_color = "white",
+                         cellwidth = 9,cellheight = 9,name = "Cor",
+                         fontsize = 8,show_colnames = F,
+                         cutree_rows=6,cutree_cols = 6
+)
+data_IM <- data_all[c(1,2,4,9,10,11),]
+cor1 <- cor(data_IM)
+cor1[is.na(cor1)] <- 0 
+p2 <- ComplexHeatmap::pheatmap(cor1,color = c("lightblue4","#e3dae6","white",
+                                        "#db8c77","#cf3132"),
+                         border_color = "white",
+                         cellwidth = 9,cellheight = 9,name = "Cor",
+                         fontsize = 8,show_colnames = F)
+data_MO <- data_all[setdiff(1:23,c(1,2,4,9,10,11)),]
+cor2 <- cor(data_MO)
+cor2[is.na(cor2)] <- 0 
+p3 <- ComplexHeatmap::pheatmap(cor2,color = c("lightblue4","#e3dae6","white",
+                                        "#db8c77","#cf3132"),
+                         border_color = "grey90",
+                         cellwidth = 9,cellheight = 9,name = "Cor",
+                         fontsize = 8,show_colnames = F,
+                         cutree_rows=6,cutree_cols = 6)
+pdf(file = "Fig6a.pdf",width = 10,height = 10)
+p1
+dev.off()
+pdf(file = "Sup16.pdf",width = 18,height =10)
+plot_grid(grid.grabExpr(draw(p2)),grid.grabExpr(draw(p3)))
+dev.off()
+#FIG6c
+color_T <- readRDS("C:/Users/yangyongheng/Desktop/tired/color_T.rds")
+mac_color <- readRDS("C:/Users/yangyongheng/Desktop/tired/mac_color.rds")
+
+setwd("C:\\Users\\yangyongheng\\Desktop\\Figure_Nature\\cpdb")
+library(tidyverse)
+library(scales)
+library(stringr)
+library(circlize)
+library(ComplexHeatmap)
+mymeans_T <- read.delim("cpdb\\cpdb_mHCC_allT\\statistical_analysis_significant_means_09_21_2023_12_20_40.txt")
+mymeans_IM <- read.delim("cpdb\\cpdb_mHCC_TIM\\statistical_analysis_significant_means_09_21_2023_13_59_27.txt")
+mymeans_MO <- read.delim("cpdb\\cpdb_mHCC_Tmo\\statistical_analysis_significant_means_09_21_2023_13_54_55.txt")
+myp_T <- read.delim("cpdb\\cpdb_mHCC_allT\\statistical_analysis_pvalues_09_21_2023_12_20_40.txt")
+myp_IM <- read.delim("cpdb\\cpdb_mHCC_TIM\\statistical_analysis_pvalues_09_21_2023_13_59_27.txt")
+myp_MO <- read.delim("cpdb\\cpdb_mHCC_Tmo\\statistical_analysis_pvalues_09_21_2023_13_54_55.txt")
+#counts T
+pvalues=myp_T[,12:dim(myp_T)[2]]
+pvalues=myp_IM[,12:dim(myp_IM)[2]]
+pvalues=myp_MO[,12:dim(myp_MO)[2]]
+#
+statdf=as.data.frame(colSums(pvalues < 0.05))
+colnames(statdf)=c("number")
+statdf$indexa=str_replace(rownames(statdf),"\\..*$","")
+statdf$indexb=str_replace(rownames(statdf),"^.*\\.","")
+test <- statdf
+colnames(test) <- c("number","from","to")
+test <- test[,c("from","to","number")]
+test$type <- substr(test$to,1,3)
+table(test$type)
+#CD4 and CD8
+#filter sender
+test <- subset(test,test$from == "CD4_c3_TNFRSF18"|test$from == "CD4T_c2_IKZF2"|test$from == "ProT_c3_MKI67"|test$from == "CD4T_c6_CXCL13")
+#filter receiver
+test <- subset(test,test$type == "CD8"|test$type == "Pro"|test$type == "CD4")
+#plot
+library(circlize)
+color_T <- readRDS("C:/Users/yangyongheng/Desktop/tired/color_T.rds")
+col_fun = colorRamp2(c(min(test$number),median(test$number),max(test$number)), c("lightblue4","#FFEEEE", "#FF0000"), transparency = 0)
+#col_fun = colorRamp2(c(10,30,50), c("lightblue4","#FFEEEE", "#FF0000"), transparency = 0)
+pdf(file = "Fig6b1.pdf")
+circos.clear()
+chordDiagram(test,grid.col = color_T,
+             annotationTrack = c("grid", "axis"),
+             preAllocateTracks = list(
+               track.height = mm_h(4),
+               track.margin = c(mm_h(4), 0)
+             ),link.sort = TRUE, link.decreasing = TRUE,
+             col = col_fun)
+highlight.sector(unique(subset(test,test$type=="CD8")$to), track.index = 1, col = "orange4", 
+                 text = "CD8", cex = 0.8, text.col = "white", niceFacing = TRUE)
+highlight.sector(unique(subset(test,test$type=="Pro")$to), track.index = 1, col = "#2D004B", 
+                 text = "Pro", cex = 0.8, text.col = "white", niceFacing = TRUE)
+highlight.sector(unique(subset(test,test$type=="CD4")$to), track.index = 1, col = "#FFD92F", 
+                 text = "CD4", cex = 0.8, text.col = "white", niceFacing = TRUE)
+text(0,0, "Tumor", cex = 2,srt = 0)
+dev.off()
+pdf(file = "Fig6b2.pdf")
+circos.clear()
+chordDiagram(test,grid.col = color_T,
+             annotationTrack = c("grid", "axis"),
+             preAllocateTracks = list(
+               track.height = mm_h(4),
+               track.margin = c(mm_h(4), 0)
+             ),link.sort = TRUE, link.decreasing = TRUE,
+             col = col_fun)
+highlight.sector(unique(subset(test,test$type=="CD8")$to), track.index = 1, col = "orange4", 
+                 text = "CD8", cex = 0.8, text.col = "white", niceFacing = TRUE)
+highlight.sector(unique(subset(test,test$type=="Pro")$to), track.index = 1, col = "#2D004B", 
+                 text = "Pro", cex = 0.8, text.col = "white", niceFacing = TRUE)
+highlight.sector(unique(subset(test,test$type=="CD4")$to), track.index = 1, col = "#FFD92F", 
+                 text = "CD4", cex = 0.8, text.col = "white", niceFacing = TRUE)
+text(0,0, "IM", cex = 2,srt = 0)
+dev.off()
+pdf(file = "Fig6b3.pdf")
+circos.clear()
+chordDiagram(test,grid.col = color_T,
+             annotationTrack = c("grid", "axis"),
+             preAllocateTracks = list(
+               track.height = mm_h(4),
+               track.margin = c(mm_h(4), 0)
+             ),link.sort = TRUE, link.decreasing = TRUE,
+             col = col_fun)
+highlight.sector(unique(subset(test,test$type=="CD8")$to), track.index = 1, col = "orange4", 
+                 text = "CD8", cex = 0.8, text.col = "white", niceFacing = TRUE)
+highlight.sector(unique(subset(test,test$type=="Pro")$to), track.index = 1, col = "#2D004B", 
+                 text = "Pro", cex = 0.8, text.col = "white", niceFacing = TRUE)
+highlight.sector(unique(subset(test,test$type=="CD4")$to), track.index = 1, col = "#FFD92F", 
+                 text = "CD4", cex = 0.8, text.col = "white", niceFacing = TRUE)
+text(0,0, "MO", cex = 2,srt = 0)
+dev.off()
+#circos.track(track.index = 1, panel.fun = function(x, y) {
+ # circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index, 
+  #            facing = "bending.inside", 
+   #           niceFacing = TRUE, adj = c(0, 0.5),cex = 0.5)
+#}, bg.border = NA)
+pdf(file = "Legend.pdf")
+lgd1 = Legend(labels = names(color_T),
+              title = "labels", 
+              at= names(color_T),
+              legend_gp = gpar(fill=color_T))
+draw(lgd1)
+dev.off()
+#
+pvalues=myp_T[,12:dim(myp_T)[2]]
+pvalues=myp_IM[,12:dim(myp_IM)[2]]
+pvalues=myp_MO[,12:dim(myp_MO)[2]]
+#
+statdf=as.data.frame(colSums(pvalues < 0.05))
+colnames(statdf)=c("number")
+statdf$indexa=str_replace(rownames(statdf),"\\..*$","")
+statdf$indexb=str_replace(rownames(statdf),"^.*\\.","")
+test <- statdf
+colnames(test) <- c("number","from","to")
+test <- test[,c("from","to","number")]
+test$type <- substr(test$to,1,3)
+table(test$type)
+test <- subset(test,test$from == "Mac_c1_MMP9"|test$from == "DC_c5_CLEC10A")
+test$type <- substr(test$to,1,3)
+table(test$type)
+#filter receiver
+test <- subset(test,test$type == "CD8"|test$type == "Pro"|test$type == "CD4")
+c <- c("#b24422","#b1a1cc")
+names(c) <- c("Mac_c1_MMP9","DC_c5_CLEC10A")
+ca <- c(c,color_T)
+col_fun = colorRamp2(c(min(test$number),median(test$number),max(test$number)), c("lightblue4","#FFEEEE", "#FF0000"), transparency = 0)
+#col_fun = colorRamp2(c(20,60,100), c("lightblue4","#FFEEEE", "#FF0000"), transparency = 0)
+pdf(file = "Fig6c1.pdf")
+circos.clear()
+chordDiagram(test,grid.col = ca,
+             annotationTrack = c("grid", "axis"),
+             preAllocateTracks = list(
+               track.height = mm_h(4),
+               track.margin = c(mm_h(4), 0)
+             ),link.sort = TRUE, link.decreasing = TRUE,
+             col = col_fun)
+highlight.sector(unique(test$from), track.index = 1, col = "#E5C494", 
+                 text = "Myeloid", cex = 0.8, text.col = "white", niceFacing = TRUE)
+highlight.sector(unique(subset(test,test$type=="CD4")$to), track.index = 1, col = "#FFD92F", 
+                 text = "CD4", cex = 0.8, text.col = "white", niceFacing = TRUE)
+highlight.sector(unique(subset(test,test$type=="CD8")$to), track.index = 1, col = "orange4", 
+                 text = "CD8", cex = 0.8, text.col = "white", niceFacing = TRUE)
+highlight.sector(unique(subset(test,test$type=="Pro")$to), track.index = 1, col = "#2D004B", 
+                 text = "Pro", cex = 0.8, text.col = "white", niceFacing = TRUE)
+text(0,0, "Tumor", cex = 2,srt = 0)
+dev.off()
+pdf(file = "Fig6c2.pdf")
+circos.clear()
+chordDiagram(test,grid.col = ca,
+             annotationTrack = c("grid", "axis"),
+             preAllocateTracks = list(
+               track.height = mm_h(4),
+               track.margin = c(mm_h(4), 0)
+             ),link.sort = TRUE, link.decreasing = TRUE,
+             col = col_fun)
+highlight.sector(unique(test$from), track.index = 1, col = "#E5C494", 
+                 text = "Myeloid", cex = 0.8, text.col = "white", niceFacing = TRUE)
+highlight.sector(unique(subset(test,test$type=="CD4")$to), track.index = 1, col = "#FFD92F", 
+                 text = "CD4", cex = 0.8, text.col = "white", niceFacing = TRUE)
+highlight.sector(unique(subset(test,test$type=="CD8")$to), track.index = 1, col = "orange4", 
+                 text = "CD8", cex = 0.8, text.col = "white", niceFacing = TRUE)
+highlight.sector(unique(subset(test,test$type=="Pro")$to), track.index = 1, col = "#2D004B", 
+                 text = "Pro", cex = 0.8, text.col = "white", niceFacing = TRUE)
+text(0,0, "IM", cex = 2,srt = 0)
+dev.off()
+pdf(file = "Fig6c3.pdf")
+circos.clear()
+chordDiagram(test,grid.col = ca,
+             annotationTrack = c("grid", "axis"),
+             preAllocateTracks = list(
+               track.height = mm_h(4),
+               track.margin = c(mm_h(4), 0)
+             ),link.sort = TRUE, link.decreasing = TRUE,
+             col = col_fun)
+highlight.sector(unique(test$from), track.index = 1, col = "#E5C494", 
+                 text = "Myeloid", cex = 0.8, text.col = "white", niceFacing = TRUE)
+highlight.sector(unique(subset(test,test$type=="CD4")$to), track.index = 1, col = "#FFD92F", 
+                 text = "CD4", cex = 0.8, text.col = "white", niceFacing = TRUE)
+highlight.sector(unique(subset(test,test$type=="CD8")$to), track.index = 1, col = "orange4", 
+                 text = "CD8", cex = 0.8, text.col = "white", niceFacing = TRUE)
+highlight.sector(unique(subset(test,test$type=="Pro")$to), track.index = 1, col = "#2D004B", 
+                 text = "Pro", cex = 0.8, text.col = "white", niceFacing = TRUE)
+text(0,0, "MO", cex = 2,srt = 0)
+dev.off()
+#plot
+d1 <- mymeans_MO %>%  dplyr::select("interacting_pair",starts_with("Mac_c1_MMP9"))%>%  dplyr::select("interacting_pair",ends_with("ProT_c1_MKI67"))
+d1 <- subset(d1,d1$Mac_c1_MMP9.ProT_c1_MKI67 >0.5)
+d2 <- mymeans_IM %>%  dplyr::select("interacting_pair",starts_with("Mac_c1_MMP9"))%>%  dplyr::select("interacting_pair",ends_with("ProT_c1_MKI67"))
+d2 <- subset(d2,d2$Mac_c1_MMP9.ProT_c1_MKI67 >0.5)
+rownames(d1) <- NULL
+plot1 <- column_to_rownames(d1,var = "interacting_pair")
+mo <- ComplexHeatmap::pheatmap(plot1,cellwidth = 10,cellheight = 10,border_color = "white",
+                               name = "Scale")
+rownames(d2) <- NULL
+plot2 <- column_to_rownames(d2,var = "interacting_pair")
+im <- ComplexHeatmap::pheatmap(plot2,cellwidth = 10,cellheight = 10,border_color = "white",
+                               name = "Scale",cluster_rows = T)
+im = grid.grabExpr(draw(im))
+mo = grid.grabExpr(draw(mo))
+library(cowplot)
+pdf(file = "Fig6d_heatmap.pdf",width = 8,height = 8)
+plot_grid(mo,im)
+dev.off()
+
+
+
+
+
+
+
+
+
