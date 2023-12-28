@@ -1,0 +1,176 @@
+library(tidyverse)
+library(ggplot2)
+library(ggpubr)
+library(cowplot)
+library(rstatix)
+library(aplot)
+library(tidyverse)
+library(ggpubr)
+library(cowplot)
+library(rstatix)
+library(ggplot2)
+meta <- readRDS("C:/Users/yangyongheng/Desktop/tired/meta_T.rds")
+cluster_prop <- meta  %>% 
+  group_by(orig.ident, Type) %>%
+  dplyr::count()
+cluster_prop <- as.data.frame(cluster_prop)
+colnames(cluster_prop)[1] <- "subject"
+subject_spot_count <- aggregate(cluster_prop$n, by=list(subject = cluster_prop$subject), FUN=sum)
+colnames(subject_spot_count)[2] <- "total_spots"
+cluster_prop <- merge(x = cluster_prop, y = subject_spot_count, by = c("subject"))
+cluster_prop$cluster_pct_subject <- round((cluster_prop$n / cluster_prop$total_spots), digits = 3)*100
+d_plot <- cluster_prop
+d_plot$patients <- substr(d_plot$subject,1,9)
+class <- data.frame(unique(d_plot$subject))
+colnames(class) <- "subject"
+class$class <- c("IM","IM","MO","N",
+                 "N","MO","MO","MO",
+                 "N","IM","IM",
+                 "N","MO","MO",
+                 "MO","N","N",
+                 "N","MO","MO",
+                 "N","MO","MO")
+class$group <- c("T","T","T","N",
+                 "N","T","T","T",
+                 "N","T","T",
+                 "N","T","T",
+                 "T","N","N",
+                 "N","T","T",
+                 "N","T","T")
+
+d_plot <- left_join(d_plot,class,by="subject")
+type <- unique(d_plot$Type)
+summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
+                      conf.interval=.95, .drop=TRUE) {
+  library(plyr)
+  
+  # 计算长度
+  length2 <- function (x, na.rm=FALSE) {
+    if (na.rm) sum(!is.na(x))
+    else       length(x)
+  }
+  
+  # 以 groupvars 为组,计算每组的长度,均值,以及标准差
+  # ddply 就是 dplyr 中的 group_by + summarise
+  datac <- ddply(data, groupvars, .drop=.drop,
+                 .fun = function(xx, col) {
+                   c(N    = length2(xx[[col]], na.rm=na.rm),
+                     mean = median   (xx[[col]], na.rm=na.rm),
+                     sd   = sd     (xx[[col]], na.rm=na.rm)
+                   )
+                 },
+                 measurevar
+  )
+  
+  # 重命名  
+  datac <- plyr::rename(datac, c("mean" = measurevar))
+  
+  # 计算标准偏差
+  datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
+  
+  # Confidence interval multiplier for standard error
+  # Calculate t-statistic for confidence interval: 
+  # e.g., if conf.interval is .95, use .975 (above/below), and use df=N-1
+  # 计算置信区间
+  ciMult <- qt(conf.interval/2 + .5, datac$N-1)
+  datac$ci <- datac$se * ciMult
+  
+  return(datac)
+}
+type <- unique(d_plot$Type)
+plot <- list()
+for (i in 1:length(unique(d_plot$Type))) {
+  tg <- subset(d_plot,d_plot$Type ==type[i])
+  tgc <- summarySE(tg, measurevar="cluster_pct_subject", groupvars=c("class"))
+  stat.test <- subset(d_plot,d_plot$Type ==type[i]) %>%
+    wilcox_test( cluster_pct_subject ~ class) %>%
+    adjust_pvalue(method = "BH") %>%
+    add_y_position()
+  plot[[i]] <- ggplot() + 
+    geom_col(data=tgc,
+             aes(x=class,y=cluster_pct_subject,color=class,fill=class),
+             alpha=0.5,
+             width=0.6)+
+    geom_errorbar(data = tgc,aes(x=class,
+                                 ymin=cluster_pct_subject-se, 
+                                 ymax=cluster_pct_subject+se,
+                                 ,color=class), width=.1)+
+    geom_jitter(data=tg,
+                aes(x=class,y=cluster_pct_subject,
+                    color=class,fill=class),width = 0.1,size=2,alpha=1)+
+    scale_color_manual(values = c("darkred","darkblue","grey"))+
+    scale_fill_manual(values = c("darkred","darkblue","grey"))+
+    labs(x=type[i],y="Frequency")+theme_classic2()+theme(legend.position = "none")+
+    theme(axis.text = element_text(color = "black",size=12))+
+    stat_pvalue_manual(stat.test, label = "p.adjust", tip.length = 0,color = "black",size = 2)+
+    expand_limits(x=c(1,3))
+}
+pdf(file = "Figure4_prop_IMN.pdf",width = 2*4,height = 2*7)
+plot_grid(plotlist = plot,ncol = 4)
+dev.off()
+plot_1 <- list()
+d_plot$group <- factor(d_plot$group,levels = c("T","N"))
+for (i in 1:length(unique(d_plot$Type))) {
+  tg <- subset(d_plot,d_plot$Type ==type[i])
+  tgc <- summarySE(tg, measurevar="cluster_pct_subject", groupvars=c("group"))
+  stat.test <- subset(d_plot,d_plot$Type ==type[i]) %>%
+    wilcox_test( cluster_pct_subject ~ group) %>%
+    adjust_pvalue(method = "BH") %>%
+    add_y_position()
+  plot_1[[i]] <- ggplot() + 
+    geom_col(data=tgc,
+             aes(x=group,y=cluster_pct_subject,color=group,fill=group),
+             alpha=0.5,
+             width=0.6)+
+    geom_errorbar(data = tgc,aes(x=group,
+                                 ymin=cluster_pct_subject-se, 
+                                 ymax=cluster_pct_subject+se,
+                                 ,color=group), width=.1)+
+    geom_jitter(data=tg,
+                aes(x=group,y=cluster_pct_subject,
+                    color=group,fill=group),width = 0.1,size=2,alpha=1)+
+    scale_color_manual(values = c("#E3716E","grey"))+
+    scale_fill_manual(values = c("#E3716E","grey"))+
+    labs(x=type[i],y="Frequency")+theme_classic2()+theme(legend.position = "none")+
+    theme(axis.text = element_text(color = "black",size=12))+
+    stat_pvalue_manual(stat.test, label = "p.adj", tip.length = 0,color = "black",size = 2)+
+    expand_limits(x=c(1,2))
+  
+}
+pdf(file = "Figure4_prop_TN.pdf",width = 1.8*4,height = 2*7)
+plot_grid(plotlist = plot_1,ncol = 4)
+dev.off()
+#fig4i
+#devtools::install_github("psyteachr/introdataviz")
+library(ggplot2)
+library(tidyverse)
+library(ggpubr)
+library(ggsci)
+library(introdataviz)
+data <- readRDS("C:/Users/yangyongheng/Desktop/mHCC/Fig.4/Fig4i.rds")
+d1 <- data[[1]]
+d1$type <- "Tex-term"
+colnames(d1)[1] <- "score"
+d2 <- data[[2]]
+d2$type <- "Tpex"
+colnames(d2)[1] <- "score"
+df <- rbind(d1,d2)
+pdf(file = "Fig4i_mod.pdf",width = 10,height = 4.2)
+ggplot(df,aes(x = ident,y = score,fill = type)) +
+  # split violin
+  geom_split_violin(alpha = 1, trim = T,color = NA,width = 2) +
+  stat_summary(fun = "mean", geom = "point",position = position_dodge(0.2),
+               size=0.2) +
+  # errorbar
+  stat_summary(fun.data = "mean_sd", geom = "errorbar", width = .15,
+              size = 0.1,
+               position = position_dodge(0.2)) +
+  scale_fill_manual(values = c("#cd78a2","#2A788E"))+
+  theme_classic2()+theme(legend.position = "right")+
+  labs(x=NULL,y= "Tex-term/Tpex  Scores (Zheng et al.)")+
+  theme(axis.text = element_text(color = "black",size=12),
+        axis.text.x = element_text(size = 8,vjust = 0.5,angle = 90),
+        axis.title.y = element_text(size = 10,face = "bold"),
+        axis.text.y = element_text(size = 8))+
+  guides(fill=guide_legend(title=NULL))
+dev.off()
