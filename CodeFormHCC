@@ -1,1 +1,149 @@
 #mHCC
+library(tidyverse)
+library(ggplot2)
+library(ggpubr)
+library(cowplot)
+library(rstatix)
+library(aplot)
+meta <-  read.table("C:\\Users\\yangyongheng\\Desktop\\Nature\\figures\\metadata2023.tsv",sep = "\t",header = T,row.names = 1)
+meta <- subset(meta,!meta$cell_type == "Epithelial")
+table(meta$cell_type)
+cluster_prop <- meta  %>% 
+  group_by(orig.ident, cell_type) %>%
+  dplyr::count()
+cluster_prop <- as.data.frame(cluster_prop)
+colnames(cluster_prop)[1] <- "subject"
+subject_spot_count <- aggregate(cluster_prop$n, by=list(subject = cluster_prop$subject), FUN=sum)
+colnames(subject_spot_count)[2] <- "total_spots"
+cluster_prop <- merge(x = cluster_prop, y = subject_spot_count, by = c("subject"))
+cluster_prop$cluster_pct_subject <- round((cluster_prop$n / cluster_prop$total_spots), digits = 3)*100
+d_plot <- cluster_prop
+d_plot$patients <- substr(d_plot$subject,1,9)
+class <- data.frame(unique(d_plot$subject))
+colnames(class) <- "subject"
+class$class <- c("IM","IM","MO","N",
+                 "N","MO","MO","MO",
+                 "N","IM","IM",
+                 "N","MO","MO",
+                 "MO","N","N",
+                 "N","MO","MO",
+                 "N","MO","MO")
+d_plot <- left_join(d_plot,class,by="subject")
+type <- unique(d_plot$cell_type)
+title <- c("B cell","Endothelial cell","Fibroblast","Myeloid cel","NKT cell",
+           "Plasma cell","Proliferating T cell","Mast cell")
+summarySE <- function(data=NULL, measurevar, groupvars=NULL, na.rm=FALSE,
+                      conf.interval=.95, .drop=TRUE) {
+  library(plyr)
+  
+  # 计算长度
+  length2 <- function (x, na.rm=FALSE) {
+    if (na.rm) sum(!is.na(x))
+    else       length(x)
+  }
+  
+  # 以 groupvars 为组,计算每组的长度,均值,以及标准差
+  # ddply 就是 dplyr 中的 group_by + summarise
+  datac <- ddply(data, groupvars, .drop=.drop,
+                 .fun = function(xx, col) {
+                   c(N    = length2(xx[[col]], na.rm=na.rm),
+                     mean = median   (xx[[col]], na.rm=na.rm),
+                     sd   = sd     (xx[[col]], na.rm=na.rm)
+                   )
+                 },
+                 measurevar
+  )
+  
+  # 重命名  
+  datac <- plyr::rename(datac, c("mean" = measurevar))
+  
+  # 计算标准偏差
+  datac$se <- datac$sd / sqrt(datac$N)  # Calculate standard error of the mean
+  
+  # Confidence interval multiplier for standard error
+  # Calculate t-statistic for confidence interval: 
+  # e.g., if conf.interval is .95, use .975 (above/below), and use df=N-1
+  # 计算置信区间
+  ciMult <- qt(conf.interval/2 + .5, datac$N-1)
+  datac$ci <- datac$se * ciMult
+  
+  return(datac)
+}
+type <- unique(d_plot$cell_type)
+plot <- list()
+for (i in 1:8) {
+  tg <- subset(d_plot,d_plot$cell_type ==type[i])
+  tgc <- summarySE(tg, measurevar="cluster_pct_subject", groupvars=c("class"))
+  stat.test <- subset(d_plot,d_plot$cell_type ==type[i]) %>%
+    wilcox_test( cluster_pct_subject ~ class) %>%
+    adjust_pvalue(method = "BH") %>%
+    add_y_position()
+  plot[[i]] <- ggplot() + 
+    geom_col(data=tgc,
+             aes(x=class,y=cluster_pct_subject,color=class,fill=class),
+             alpha=0.5,
+             width=0.6)+
+    geom_errorbar(data = tgc,aes(x=class,
+                                 ymin=cluster_pct_subject-se, 
+                                 ymax=cluster_pct_subject+se,
+                                 ,color=class), width=.1)+
+    geom_jitter(data=tg,
+                aes(x=class,y=cluster_pct_subject,
+                    color=class,fill=class),width = 0.1,size=2,alpha=1)+
+    scale_color_manual(values = c("darkred","darkblue","grey"))+
+    scale_fill_manual(values = c("darkred","darkblue","grey"))+
+    labs(x=title[i],y="Frequency")+theme_classic2()+theme(legend.position = "none")+
+    theme(axis.text = element_text(color = "black",size=12))+
+    stat_pvalue_manual(stat.test, label = "p.adjust", tip.length = 0,color = "black",size = 2)+
+    expand_limits(x=c(1,3))
+}
+plot_grid(plotlist = plot,ncol = 4)
+pdf(file = "Fig2c_IMN.pdf",width = 8,height = 4)
+plot_grid(plotlist = plot,ncol = 4)
+dev.off()
+d_plot <- cluster_prop
+d_plot$patients <- substr(d_plot$subject,1,9)
+class <- data.frame(unique(d_plot$subject))
+colnames(class) <- "subject"
+class$class <- c("T","T","T","N",
+                 "N","T","T","T",
+                 "N","T","T",
+                 "N","T","T",
+                 "T","N","N",
+                 "N","T","T",
+                 "N","T","T")
+d_plot <- left_join(d_plot,class,by="subject")
+type <- unique(d_plot$Type)
+d_plot$class <- ifelse(d_plot$class == "T","IM/MO","NAT")
+d_plot$class <- factor(d_plot$class,levels = c("IM/MO","NAT"))
+type <- unique(d_plot$cell_type)
+plot_1 <- list()
+for (i in 1:8) {
+  tg <- subset(d_plot,d_plot$cell_type ==type[i])
+  tgc <- summarySE(tg, measurevar="cluster_pct_subject", groupvars=c("class"))
+  stat.test <- subset(d_plot,d_plot$cell_type ==type[i]) %>%
+    wilcox_test( cluster_pct_subject ~ class) %>%
+    adjust_pvalue(method = "BH") %>%
+    add_y_position()
+  plot_1[[i]] <- ggplot() + 
+    geom_col(data=tgc,
+             aes(x=class,y=cluster_pct_subject,color=class,fill=class),
+             alpha=0.5,
+             width=0.6)+
+    geom_errorbar(data = tgc,aes(x=class,
+                                 ymin=cluster_pct_subject-se, 
+                                 ymax=cluster_pct_subject+se,
+                                 ,color=class), width=.1)+
+    geom_jitter(data=tg,
+                aes(x=class,y=cluster_pct_subject,
+                    color=class,fill=class),width = 0.1,size=2,alpha=1)+
+    scale_color_manual(values = c("#E3716E","grey"))+
+    scale_fill_manual(values = c("#E3716E","grey"))+
+    labs(x=title[i],y="Frequency")+theme_classic2()+theme(legend.position = "none")+
+    theme(axis.text = element_text(color = "black",size=12))+
+    stat_pvalue_manual(stat.test, label = "p", tip.length = 0,color = "black",size = 2)+
+    expand_limits(x=c(1,2))
+}
+pdf(file = "Fig2c_TN.pdf",width = 5/3*4,height = 4)
+plot_grid(plotlist = plot_1,ncol = 4)
+dev.off()
