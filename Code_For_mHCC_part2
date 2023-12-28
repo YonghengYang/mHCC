@@ -1,0 +1,105 @@
+setwd("C:\\Users\\yangyongheng\\Desktop\\mHCC\\Fig.3_mod")
+data <- readRDS("C:/Users/yangyongheng/Desktop/mHCC/Fig.3_mod/supepi.rds")
+s <- data[[1]]
+g <- data[[2]]
+c <- data[[3]]
+v <- data[[4]]
+color <- c('#ffbe00', '#1989ac', '#f1bbd5', '#283e56', '#970747', '#ff7a8a', 
+  '#c4aff0', '#CE3434', '#BBE4EF', '#8d3b3e', '#80c7e0')
+name <- data.frame(ident=unique(c$ident))
+name$name <- c("P1_T1","P1_T2","P1_T3",
+               "P2_T2","P2_T3",
+               "P3_T1","P3_T2",
+               "P4_T1","P4_T2"
+          )
+s <- left_join(s,name,by="ident")
+c <- left_join(c,name,by="ident")
+v <- left_join(v,name,by="ident")
+g <- left_join(g,name,by="ident")
+
+p1 <- ggplot(data = g,
+       aes(x=name,y=GPC3)) +
+  geom_violin(aes(fill=ident),color="white",scale = "width",
+              trim =T)+
+  scale_fill_manual(values = color)+theme_classic2()+theme(legend.position = "none")+
+  labs(x=NULL,y= "GPC3")+
+  theme(axis.text = element_text(color = "black",size=12),
+        axis.title.x = element_text(size = 3),
+        axis.text.x = element_text(size = 8),
+        axis.title.y = element_text(size = 10))
+p2 <- ggplot(data = c,
+       aes(x=name,y=CD24)) +
+  geom_violin(aes(fill=ident),color="white",scale = "width",
+              trim =T)+
+  scale_fill_manual(values = color)+theme_classic2()+theme(legend.position = "none")+
+  labs(x=NULL,y= "CD24")+
+  theme(axis.text = element_text(color = "black",size=12),
+        axis.title.x = element_text(size = 3),
+        axis.text.x = element_text(size = 8),
+        axis.title.y = element_text(size = 10))
+p3 <- ggplot(data = v,
+       aes(x=name,y=VIM)) +
+  geom_violin(aes(fill=ident),color="white",scale = "width",
+              trim =T)+
+  scale_fill_manual(values = color)+theme_classic2()+theme(legend.position = "none")+
+  labs(x=NULL,y= "VIM")+
+  theme(axis.text = element_text(color = "black",size=12),
+        axis.title.x = element_text(size = 3),
+        axis.text.x = element_text(size = 8),
+        axis.title.y = element_text(size = 10))
+pdf(file = "exp.pdf",width = 5.6,height = 3.8)
+p1/p2/p3
+dev.off()
+p4 <- ggplot(data = s,
+             aes(x=name,y=STEM_1)) +
+  geom_violin(aes(fill=ident),color=NA,scale = "width",
+              trim =T)+
+  scale_fill_manual(values = color)+theme_classic2()+theme(legend.position = "none")+
+  labs(x=NULL,y= "Stem Score")+
+  theme(axis.text = element_text(color = "black",size=12),
+        axis.title.x = element_text(size = 3),
+        axis.text.x = element_text(size = 8),
+        axis.title.y = element_text(size = 10))+
+stat_summary(fun.data="mean_sdl", fun.args = list(mult=1),
+            geom="pointrange", color = "black")
+pdf(file = "stemscore.pdf",width = 5.6,height = 2)
+p4
+dev.off()
+
+mHCC1010 <- readRDS("C:/Users/yangyongheng/Desktop/tired/mHCC1010.rds")
+colnames(mHCC1010) <- c("P1_T1","P1_T2","P1_T3",
+                        "P2_T2","P2_T3","P3_T1"
+                        ,"P3_T2","P4_T1","P4_T2")
+pdf(file = "Heatmap.pdf",width = 7,height = 10)
+Heatmap(mHCC1010,name = "GSVA",
+        row_split = 1:50,
+        column_split = colnames(mHCC1010),show_column_names = T,
+        row_title = NULL,column_title = NULL,col = c("#2b96c3","white","#d85356"),
+        row_names_gp = grid::gpar(fontsize = 8),
+        cluster_columns = T,show_row_dend = T,row_dend_side = "right")
+dev.off()
+
+s$P <- substr(s$name,1,2)
+class <- data.frame(name= unique(s$name))
+class$class <- c("IM","IM","MO","MO","MO","IM","IM","MO","MO")
+s <- left_join(s,class,by= "name")
+pdf(file = "stemscore.pdf",width = 3,height = 3)
+ggplot(data = s,
+       aes(x=class,y=STEM_1)) +
+  geom_violin(aes(fill=class),color=NA,scale = "width",
+              trim =T)+
+  scale_fill_manual(values = c("#1989ac","purple"))+theme_classic2()+theme(legend.position = "none")+
+  labs(x=NULL,y= "Stem Score")+
+  theme(axis.text = element_text(color = "black",size=12),
+        axis.title.x = element_text(size = 3),
+        axis.text.x = element_text(size = 8),
+        axis.title.y = element_text(size = 10))+
+  stat_summary(fun.data="mean_sdl", fun.args = list(mult=1),
+               geom="pointrange", color = "black")
+dev.off()
+
+
+
+
+
+
